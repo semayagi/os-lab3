@@ -1,0 +1,193 @@
+\documentclass[unicode, 12pt, a4paper, oneside, fleqn]{article}
+
+% This file is self-contained so it can also be compiled by editors that
+% compile a single .tex file without copying the neighboring project folders.
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setdefaultlanguage{russian}
+\setotherlanguage{english}
+\setmainfont{DejaVu Serif}
+\setmonofont{DejaVu Sans Mono}
+\usepackage{geometry}
+\geometry{
+  a4paper,
+  left=2.54cm,
+  right=2.54cm,
+  top=2.54cm,
+  bottom=2.54cm,
+  headheight=0mm,
+  headsep=0mm,
+  footnotesep=0mm,
+  footskip=0mm,
+}
+\usepackage{nopageno}
+\usepackage{titlesec}
+\titleformat*{\section}{\large\bfseries}
+\titlespacing\section{0pt}{12pt plus 4pt minus 2pt}{0pt plus 2pt minus 2pt}
+\setcounter{secnumdepth}{0}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage{longtable}
+\usepackage[table]{xcolor}
+\usepackage{array}
+\usepackage{listings}
+\usepackage{alltt}
+\usepackage{csquotes}
+\DeclareQuoteStyle{russian}
+  {\guillemotleft}{\guillemotright}[0.025em]
+  {\quotedblbase}{\textquotedblleft}
+\ExecuteQuoteOptions{style=russian}
+\usepackage{graphicx}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+\lstset{
+  tabsize=2,
+  breaklines,
+  columns=fullflexible,
+  flexiblecolumns,
+  numbers=left,
+  numberstyle={\footnotesize},
+  extendedchars,
+  inputencoding=utf8,
+  escapechar=@,
+  basicstyle=\footnotesize\ttfamily,
+  showstringspaces=false
+}
+
+\parindent=0pt
+\parskip=3pt
+
+\begin{document}
+
+\begin{titlepage}
+\begin{center}
+\large
+МОСКОВСКИЙ АВИАЦИОННЫЙ ИНСТИТУТ\\ (НАЦИОНАЛЬНЫЙ ИССЛЕДОВАТЕЛЬСКИЙ УНИВЕРСИТЕТ)
+
+\vspace{20pt}
+
+Институт №8 <<Компьютерные науки и прикладная математика>>
+
+Кафедра 806 <<Вычислительная математика и программирование>>
+\end{center}
+
+\vspace{60pt}
+
+\begin{center}
+\bfseries
+\large
+Лабораторная работа № 3 \\по курсу \enquote{Операционные системы}
+
+\vspace{54pt}
+\end{center}
+
+\vfill
+
+\begin{flushright}
+\large
+\begin{tabular}{rl}
+Выполнил: & Ягид С. Е. \\
+Группа: & М8О-206БВ-25 \\
+Проверил: & Ефимов Д. А. \\
+\end{tabular}
+\end{flushright}
+
+\vspace{92pt}
+
+\begin{center}
+\large
+Москва, \the\year
+\end{center}
+\end{titlepage}
+
+\pagebreak
+
+\section{Условие}
+{\bfseries Цель работы:} получить практические навыки создания потоков операционной системы, распределения вычислений между потоками и измерения ускорения параллельной программы.
+
+{\bfseries Задание:} вычислить площадь круга методом Монте-Карло. Ограничение числа одновременно работающих потоков задаётся при запуске. В программе выводятся идентификаторы процесса и потоков; эксперимент сравнивает время работы при разном количестве потоков.
+
+{\bfseries Вариант:} 16. Пользователь задаёт радиус круга.
+
+\section{Метод решения}
+Для оценки площади равномерно выбираются $N$ точек $(x,y)$ в квадрате $[-1,1]\times[-1,1]$. Точка считается попавшей в круг единичного радиуса, если $x^2+y^2\leq 1$. Если $H$ точек попало внутрь, доля $H/N$ приближает отношение площади круга к площади квадрата. Поэтому площадь круга радиуса $R$ оценивается формулой
+\[
+    A \approx 4R^2\frac{H}{N}.
+\]
+
+Общее число точек делится между $T$ потоками: каждый получает $q=\lfloor N/T\rfloor$ точек, а первые $r=N\bmod T$ потоков получают ещё по одной. Каждый поток хранит собственное число попаданий; общий счётчик во время цикла не изменяется, поэтому блокировка для него не нужна. Главный поток дожидается завершения рабочих через \texttt{WaitForMultipleObjects}, затем складывает локальные результаты.
+
+\section{Описание программы}
+Исходный файл программы — \texttt{main.c}. Структура \texttt{WorkerData} хранит размер участка, локальный результат, начальное состояние генератора случайных чисел и TID. Функция \texttt{count\_points} обрабатывает участок одного рабочего потока. Генератор псевдослучайных чисел имеет отдельное состояние у каждого потока.
+
+Для создания и ожидания потоков используются Win32-функции \texttt{CreateThread} и \texttt{WaitForMultipleObjects}; дескрипторы закрываются через \texttt{CloseHandle}. Идентификаторы процесса и потоков получаются через \texttt{GetCurrentProcessId} и \texttt{GetCurrentThreadId}. Время измеряется высокоточным счётчиком \texttt{QueryPerformanceCounter} и частотой \texttt{QueryPerformanceFrequency}. Ошибки системных вызовов проверяются, память для данных рабочих освобождается через \texttt{free}.
+
+Ключевые фрагменты реализации:
+\begin{lstlisting}[language=C]
+const uint64_t base_count = sample_total / thread_count;
+const uint64_t remainder = sample_total % thread_count;
+workers[i].sample_count = base_count + (i < remainder ? 1 : 0);
+\end{lstlisting}
+
+\begin{lstlisting}[language=C]
+if (x * x + y * y <= 1.0) {
+    ++hits;
+}
+data->hits = hits; /* отдельный результат этого потока */
+\end{lstlisting}
+
+\section{Результаты}
+Программа собрана командой \texttt{gcc -std=c11 -O2 -Wall -Wextra -Wpedantic main.c -o monte\_carlo.exe}. Формат запуска: \texttt{monte\_carlo.exe <радиус> <число\_точек> <число\_потоков>}. Для замеров радиус равен 1, число точек — 20,000,000; каждое измерение повторялось три раза. Время включает создание потоков и ожидание их завершения. В таблице указана медиана трёх измерений.
+
+\begin{center}
+\begin{tabular}{r r r r r}
+\hline
+Потоки $p$ & Замеры, мс & Медиана $T_p$, мс & Ускорение $S_p$ & Эффективность $E_p$ \\
+\hline
+1 & 73.681; 70.477; 70.666 & 70.666 & 1.000 & 1.000 \\
+2 & 35.379; 38.743; 40.121 & 38.743 & 1.824 & 0.912 \\
+4 & 19.303; 18.838; 19.597 & 19.303 & 3.661 & 0.915 \\
+8 & 18.016; 19.351; 18.343 & 18.343 & 3.852 & 0.482 \\
+\hline
+\end{tabular}
+\end{center}
+
+Ускорение вычислено как $S_p=T_1/T_p$, эффективность — как $E_p=S_p/p$.
+
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.85\textwidth,
+  height=6cm,
+  xlabel={Число потоков},
+  ylabel={Время, мс},
+  xtick={1,2,4,8},
+  grid=both,
+  ymin=0,
+  xmin=0,
+  xmax=9,
+  mark size=2.5pt
+]
+\addplot[blue, thick, mark=*] coordinates {
+  (1,70.666) (2,38.743) (4,19.303) (8,18.343)
+};
+\end{axis}
+\end{tikzpicture}
+\end{center}
+
+При четырёх потоках время стало примерно в 3.66 раза меньше, чем при одном. Переход от четырёх к восьми потокам дал небольшое дополнительное ускорение; эффективность при восьми потоках снизилась. Это может быть связано с ограниченным числом доступных вычислительных ядер и накладными расходами планирования. Число ядер в этой среде получить не удалось, поэтому причина формулируется как предположение. Во всех запусках оценка площади круга радиуса 1 находилась близко к $\pi$; разброс между запусками ожидаем из-за случайной выборки.
+
+Пример запуска на 1,000,000 точек с четырьмя потоками: оценка площади $3.140772$, время $1.091$ мс. При запуске программа выводит PID процесса и TID каждого рабочего потока. Эти идентификаторы позволяют сопоставить выполнение потоков с событиями 	exttt{Thread Create} и 	exttt{Thread Exit} в Process Monitor.
+
+\section{Выводы}
+Реализована параллельная оценка площади круга методом Монте-Карло. Работа делится между потоками без совместного изменения счётчика попаданий; результаты объединяются после ожидания потоков. На данном измерении увеличение числа потоков с одного до четырёх заметно сократило время расчёта, а восемь потоков дали существенно меньший дополнительный выигрыш. Оценка площади приближается к точному значению при увеличении числа случайных точек.
+
+\pagebreak
+
+\section{Исходная программа}
+Полный исходный код находится в файле \texttt{main.c}. В основной текст включены фрагменты, важные для распределения работы и подсчёта попаданий.
+
+\end{document}
