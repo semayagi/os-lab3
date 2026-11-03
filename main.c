@@ -64,16 +64,12 @@ int main(void)
         if (err != 0)
         {
             fprintf(stderr, "Can't create thread : [%s]\n", strerror(err));
-            tid[i] = NULL;
         }
     }
 
     unsigned int H = 0;
     for (i = 0; i < p; ++i)
     {
-        if (tid[i] == NULL)
-            continue;
-
         err = pthread_join(tid[i], NULL);
         if (err != 0)
             printf("\nCan't wait for thread : [%s]", strerror(err));
