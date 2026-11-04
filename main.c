@@ -10,13 +10,13 @@ typedef struct
     double r;
     int N, extra_N;
     int H;
-    unsigned int seed; //random
+    unsigned int seed; // random
     pthread_cond_t extra_ready;
 } ThreadData;
 
-double randfrom(double min, double max, unsigned int *seed) 
+double randfrom(double min, double max, unsigned int *seed)
 {
-    double range = (max - min); 
+    double range = (max - min);
     double div = RAND_MAX / range;
     return min + (rand_r(seed) / div);
 
@@ -38,23 +38,25 @@ void *work(void *arg)
     // Generate N dots
     // Count, how many x^2 + y^2 <= r^2
     int i = 0;
-    for (; i < N; ++i) {
+    for (; i < N; ++i)
+    {
         double x = randfrom(-r, r, &td->seed), y = randfrom(-r, r, &td->seed);
-        if (x*x + y*y <= r*r)
+        if (x * x + y * y <= r * r)
             ++H;
     }
-    
+
     /* Ждём, пока main запишет дополнительное количество точек. */
-    pthread_mutex_lock(&lock); // Mutex - защита от чтения td->extra_N во время того, как главный поток в main туда записывает
-    while (td->extra_N == -1) // Почему не if? Защита от ложного пробуждения - правильный шаблон для conditional variable
+    pthread_mutex_lock(&lock);                      // Mutex - защита от чтения td->extra_N во время того, как главный поток в main туда записывает
+    while (td->extra_N == -1)                       // Почему не if? Защита от ложного пробуждения - правильный шаблон для conditional variable
         pthread_cond_wait(&td->extra_ready, &lock); // Отпускаем mutex до пробуждения
     int extra_N = td->extra_N;
     pthread_mutex_unlock(&lock);
 
     /* Process extra_N dots in a loop (if extra_N == 0, no extra work), добавить попадания к H. */
-    for (i = 0; i < extra_N; ++i) {
+    for (i = 0; i < extra_N; ++i)
+    {
         double x = randfrom(-r, r, &td->seed), y = randfrom(-r, r, &td->seed);
-        if (x*x + y*y <= r*r)
+        if (x * x + y * y <= r * r)
             ++H;
     }
 
@@ -62,7 +64,8 @@ void *work(void *arg)
     return NULL;
 }
 
-int program(double r, int N, int p, int *out_H) {
+int program(double r, int N, int p, int *out_H)
+{
     int i = 0;
 
     ThreadData *Threads = (ThreadData *)malloc(p * sizeof(ThreadData));
@@ -179,34 +182,39 @@ int main(void)
         fprintf(stderr, "Некорректный ввод\n");
         return EXIT_FAILURE;
     }
- 
+
     struct timespec start, end;
+
+    // 1 100000000 2
+    int Hp;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    int p2 = program(r, N, p, &Hp);
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    if (p2 != 0)
+    {
+        return EXIT_FAILURE;
+    }
+    double Tp = (end.tv_sec - start.tv_sec) +
+                (end.tv_nsec - start.tv_nsec) / 1000000000.0; // seconds
 
     int H1;
     clock_gettime(CLOCK_MONOTONIC, &start);
     int p1 = program(r, N, 1, &H1);
     clock_gettime(CLOCK_MONOTONIC, &end);
-    if (p1 != 0) {
+    if (p1 != 0)
+    {
         return EXIT_FAILURE;
     }
-    double T1 = (end.tv_sec - start.tv_sec) + 
-                     (end.tv_nsec - start.tv_nsec) / 1000000000.0; // seconds
+    double T1 = (end.tv_sec - start.tv_sec) +
+                (end.tv_nsec - start.tv_nsec) / 1000000000.0; // seconds
 
-    int Hp;
-    clock_gettime(CLOCK_MONOTONIC, &start);
-    int p2 = program(r, N, p, &Hp);
-    clock_gettime(CLOCK_MONOTONIC, &end);
-    if (p2 != 0) {
-        return EXIT_FAILURE;
-    }
     pthread_mutex_destroy(&lock);
-    double Tp = (end.tv_sec - start.tv_sec) + 
-                     (end.tv_nsec - start.tv_nsec) / 1000000000.0; // seconds
+
     double Sp = T1 / Tp;
     double Ep = Sp / p;
 
     printf("Result with 1 thread: %d\nResult with p threads: %d\n", H1, Hp);
-    printf("T1: %lf\nTp: %lf\nSp = T1 / Tp: %lf\nEp = Sp/p: %lf", T1, Tp, Sp, Ep);
+    printf("T1: %lf\nTp: %lf\nSp = T1/Tp: %lf\nEp = Sp/p: %lf\n", T1, Tp, Sp, Ep);
 
     return EXIT_SUCCESS;
 }
